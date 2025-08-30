@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outline & V2Ray Key Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="max-w-xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8 mt-10">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Outline နှင့် V2Ray Key Generator</h1>
+        <p class="text-center text-sm text-gray-500 mb-6">
+            ဤသည်မှာ သင့်၏ server API နှင့် ချိတ်ဆက်ရန်အတွက် ရေးသားထားသော application ဖြစ်ပါသည်။
+        </p>
+
+        <div class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">အသုံးပြုသူအမည် / မှတ်စု</label>
+                <input type="text" id="username" placeholder="eg. user_name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="expiry-date" class="block text-sm font-medium text-gray-700">သက်တမ်းကုန်ဆုံးရက်</label>
+                <input type="date" id="expiry-date" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+        </div>
+
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button id="generate-outline-btn" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Outline Key ထုတ်လုပ်ရန်
+            </button>
+            <button id="generate-v2ray-btn" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                V2Ray Key ထုတ်လုပ်ရန်
+            </button>
+        </div>
+        
+        <div id="loading-spinner" class="mt-6 text-center hidden">
+            <svg class="animate-spin h-8 w-8 text-gray-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+
+        <div id="output-section" class="mt-8 hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">ထုတ်လုပ်ပြီးသော Key</h2>
+            <div class="relative">
+                <textarea id="key-output" readonly class="w-full p-4 bg-gray-50 border border-gray-300 rounded-md text-gray-800 break-all h-40 resize-none"></textarea>
+                <button id="copy-btn" class="absolute top-2 right-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1 px-3 rounded-md text-xs">ကူးယူရန်</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const usernameInput = document.getElementById('username');
+            const expiryDateInput = document.getElementById('expiry-date');
+            const generateOutlineBtn = document.getElementById('generate-outline-btn');
+            const generateV2rayBtn = document.getElementById('generate-v2ray-btn');
+            const outputSection = document.getElementById('output-section');
+            const keyOutput = document.getElementById('key-output');
+            const copyBtn = document.getElementById('copy-btn');
+            const loadingSpinner = document.getElementById('loading-spinner');
+
+            // TODO: အောက်က API URL တွေကို သင့်ရဲ့ server မှာ တကယ်ရှိတဲ့ URL တွေနဲ့ အစားထိုးပါ။
+            const API_ENDPOINTS = {
+                outline: 'https://178.128.27.158:9768/7SZ5KaZPBdeSKCIcoBqcXQ',
+                v2ray: 'https://your-api-server.com/api/generate-v2ray-key'
+            };
+
+            // Key ကို server ကနေရယူဖို့ fetch ကို အသုံးပြုပါတယ်။
+            async function generateKeyFromServer(type) {
+                const username = usernameInput.value || 'User';
+                const expiryDate = expiryDateInput.value;
+                
+                // UI ကို Update လုပ်ပြီး loading ကို ပြသမယ်။
+                outputSection.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+
+                try {
+                    const response = await fetch(API_ENDPOINTS[type], {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            expiryDate: expiryDate
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Server မှ ပြန်မပို့သော အဖြေ: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+
+                    // Server ကနေပြန်လာတဲ့ data ကို UI မှာပြသမယ်။
+                    keyOutput.value = `### ထုတ်လုပ်ပြီးသော Key\n` +
+                                     `အသုံးပြုသူ: ${data.username}\n` +
+                                     `သက်တမ်းကုန်ဆုံးရက်: ${data.expiryDate || 'မရှိပါ'}\n` +
+                                     `Link: ${data.key}\n\n` +
+                                     `မှတ်ချက်: ဤ key သည် server မှ တိုက်ရိုက်ထုတ်လုပ်ပေးထားပါသည်။`;
+                    
+                    outputSection.classList.remove('hidden');
+                    return data;
+
+                } catch (error) {
+                    // အမှားတစ်ခုခုဖြစ်ခဲ့ရင် message box နဲ့ပြသမယ်။
+                    keyOutput.value = `အမှားတစ်ခုခုဖြစ်နေပါသည်။ ကျေးဇူးပြု၍ server အခြေအနေကို စစ်ဆေးပါ။\n\nအသေးစိတ်အချက်အလက်: ${error.message}`;
+                    outputSection.classList.remove('hidden');
+                    console.error('API Error:', error);
+                } finally {
+                    // Loading ကို ဖျောက်ထားမယ်။
+                    loadingSpinner.classList.add('hidden');
+                }
+            }
+
+            // Outline ခလုတ် နှိပ်လိုက်ရင်
+            generateOutlineBtn.addEventListener('click', () => {
+                generateKeyFromServer('outline');
+            });
+
+            // V2Ray ခလုတ် နှိပ်လိုက်ရင်
+            generateV2rayBtn.addEventListener('click', () => {
+                generateKeyFromServer('v2ray');
+            });
+
+            // ကူးယူရန် ခလုတ် နှိပ်လိုက်ရင်
+            copyBtn.addEventListener('click', () => {
+                keyOutput.select();
+                keyOutput.setSelectionRange(0, 99999); // For mobile devices
+                document.execCommand('copy');
+                copyBtn.textContent = 'ကူးယူပြီးပြီ!';
+                setTimeout(() => {
+                    copyBtn.textContent = 'ကူးယူရန်';
+                }, 2000);
+            });
+        });
+    </script>
+</body>
+</html>
