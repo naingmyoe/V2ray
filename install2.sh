@@ -1,0 +1,1319 @@
+#!/bin/bash
+
+# အရောင်များသတ်မှတ်ခြင်း
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}=========================================${NC}"
+echo -e "${GREEN}   OUTLINE MANAGER ULTIMATE INSTALLER    ${NC}"
+echo -e "${GREEN}=========================================${NC}"
+
+# 1. Root စစ်ဆေးခြင်း
+if [ "$EUID" -ne 0 ]; then 
+  echo -e "${RED}Please run as root (sudo ./install.sh)${NC}"
+  exit
+fi
+
+# 2. API URL တောင်းခံခြင်း
+echo -e "${YELLOW}Outline Management API URL ကို ထည့်သွင်းပေးပါ:${NC}"
+echo -e "(Example: https://1.2.3.4:12345/SecretKey...)"
+read -p "API URL: " USER_API_URL
+
+if [ -z "$USER_API_URL" ]; then
+  echo -e "${RED}API URL မထည့်သွင်းထားပါ။ Installation ရပ်တန့်လိုက်ပါပြီ။${NC}"
+  exit 1
+fi
+
+# 3. System Update & Dependencies Install
+echo -e "${YELLOW}[+] System Updating & Installing Node.js...${NC}"
+apt update -y
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt install -y nodejs
+
+# 4. Global Tools Install
+echo -e "${YELLOW}[+] Installing PM2 & HTTP-Server...${NC}"
+npm install -g pm2 http-server
+
+# 5. Setup Directory
+INSTALL_DIR="/opt/outline-manager"
+mkdir -p $INSTALL_DIR
+cd $INSTALL_DIR
+
+# 6. Creating package.json
+echo -e "${YELLOW}[+] Creating Config Files...${NC}"
+cat <<EOF > package.json
+{
+  "name": "outline-manager-pro",
+  "version": "1.0.0",
+  "description": "Outline Manager & Bot",
+  "main": "bot.js",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
+EOF
+
+# Install Local Dependencies
+npm install
+
+# 7. Creating bot.js (Auto Guard)
+cat <<EOF > bot.js
+const axios = require('axios');
+const https = require('https');
+
+// CONFIGURATION
+const API_URL = "${USER_API_URL}"; 
+const CHECK_INTERVAL = 10000; // 10 Seconds
+const REQUEST_TIMEOUT = 30000; // 30 Seconds
+
+const agent = new https.Agent({ rejectUnauthorized: false, keepAlive: true });
+const client = axios.create({ httpsAgent: agent, timeout: REQUEST_TIMEOUT });
+
+function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB'][i];
+}
+
+async function runGuardian() {
+    const now = new Date().toLocaleString('en-US', { hour12: false });
+    try {
+        const [keysRes, metricsRes] = await Promise.all([
+            client.get(\`\${API_URL}/access-keys\`),
+            client.get(\`\${API_URL}/metrics/transfer\`)
+        ]);
+
+        const keys = keysRes.data.accessKeys;
+        const usageMap = metricsRes.data.bytesTransferredByUserId || {};
+        const today = new Date().toISOString().split('T')[0];
+
+        for (const key of keys) {
+            const limitBytes = key.dataLimit ? key.dataLimit.bytes : 0;
+            const usedBytes = usageMap[key.id] || 0;
+            const isBlocked = limitBytes > 0 && limitBytes <= 5000;
+
+            if (isBlocked) continue; 
+
+            let shouldBlock = false;
+            let reason = "";
+
+            if (key.name && key.name.includes('|')) {
+                const parts = key.name.split('|');
+                const dateStr = parts[parts.length - 1].trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr) && dateStr < today) {
+                    shouldBlock = true;
+                    reason = \`EXPIRED (\${dateStr})\`;
+                }
+            }
+
+            if (!shouldBlock && limitBytes > 5000 && usedBytes >= limitBytes) {
+                shouldBlock = true;
+                reason = \`DATA LIMIT (\${formatBytes(usedBytes)} / \${formatBytes(limitBytes)})\`;
+            }
+
+            if (shouldBlock) {
+                console.log(\`[\${now}] 🚫 Blocking Key ID \${key.id}: \${reason}\`);
+                await client.put(\`\${API_URL}/access-keys/\${key.id}/data-limit\`, { limit: { bytes: 1 } });
+            }
+        }
+    } catch (error) {
+        console.error(\`[\${now}] ⚠️ Error: \${error.message}\`);
+    }
+}
+
+console.log("🚀 Outline Auto-Guard Started...");
+runGuardian();
+setInterval(runGuardian, CHECK_INTERVAL);
+EOF
+
+# 8. Creating index.html (Web Panel Ultimate)
+cat <<EOF > index.html
+<!DOCTYPE html>
+
+<html lang="my">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Outline Ultimate Manager</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+        body { font-family: 'Inter', sans-serif; }
+
+        .modal { transition: opacity 0.25s ease; }
+
+    </style>
+
+</head>
+
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <!-- Navbar -->
+
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+
+            <div class="flex items-center space-x-3">
+
+                <div class="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-900/50">
+
+                    <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
+
+                </div>
+
+                <div>
+
+                    <h1 class="text-xl font-bold tracking-tight">Outline Manager</h1>
+
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Ultimate Edition</p>
+
+                </div>
+
+            </div>
+
+            <div id="nav-status" class="hidden flex items-center space-x-4">
+
+                <div class="hidden md:flex items-center px-3 py-1 bg-slate-800 rounded-full border border-slate-700">
+
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> 
+
+                    <span class="text-xs text-emerald-400 font-medium">Auto-Guard Active (5s)</span>
+
+                </div>
+
+                <button onclick="disconnect()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Logout">
+
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </nav>
+
+    <!-- Main Content -->
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+
+        <!-- Login Section -->
+
+        <div id="login-section" class="max-w-lg mx-auto mt-16">
+
+            <div class="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+
+                <div class="text-center mb-8">
+
+                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+
+                        <i data-lucide="link" class="w-8 h-8 text-indigo-600"></i>
+
+                    </div>
+
+                    <h2 class="text-2xl font-bold text-slate-800">Server Connection</h2>
+
+                    <p class="text-slate-500 mt-2 text-sm">Please enter your Management API URL</p>
+
+                </div>
+
+                
+
+                <form onsubmit="connectServer(event)" class="space-y-4">
+
+                    <div>
+
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">API URL</label>
+
+                        <input type="password" id="api-url" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition font-mono text-sm" placeholder="https://1.2.3.4:xxxxx/SecretKey..." required>
+
+                    </div>
+
+                    <button type="submit" id="connect-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-200 transition flex justify-center items-center">
+
+                        <span class="btn-text">Connect Server</span>
+
+                    </button>
+
+                </form>
+
+                
+
+                 <div id="ssl-help" class="hidden mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-800">
+
+                    <div class="flex items-start">
+
+                        <i data-lucide="alert-triangle" class="w-5 h-5 mr-3 flex-shrink-0 mt-0.5"></i>
+
+                        <div>
+
+                            <p class="font-bold">Connection Failed?</p>
+
+                            <p class="mt-1 text-xs mb-2">Browser security might be blocking the self-signed certificate.</p>
+
+                            <a href="#" id="ssl-link" target="_blank" class="inline-block bg-orange-100 text-orange-900 px-3 py-1 rounded-lg font-bold text-xs hover:bg-orange-200 transition">
+
+                                1. Open API Link
+
+                            </a>
+
+                            <p class="mt-2 text-xs">2. Click "Advanced" -> "Proceed (unsafe)"</p>
+
+                            <p class="mt-1 text-xs">3. Come back here and try again.</p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Dashboard Section -->
+
+        <div id="dashboard" class="hidden space-y-8">
+
+            
+
+            <!-- Stats Overview -->
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                <!-- Total Keys -->
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-indigo-200 transition">
+
+                    <div>
+
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Keys</p>
+
+                        <h3 class="text-3xl font-bold text-slate-800 mt-1" id="total-keys">0</h3>
+
+                    </div>
+
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition">
+
+                        <i data-lucide="users" class="w-6 h-6"></i>
+
+                    </div>
+
+                </div>
+
+                <!-- Total Usage -->
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-emerald-200 transition">
+
+                    <div>
+
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Data Usage</p>
+
+                        <h3 class="text-3xl font-bold text-slate-800 mt-1" id="total-usage">0 GB</h3>
+
+                    </div>
+
+                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition">
+
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+
+                    </div>
+
+                </div>
+
+                <!-- Action Button -->
+
+                <button onclick="openCreateModal()" class="bg-slate-900 p-6 rounded-2xl shadow-lg shadow-slate-300 flex items-center justify-center space-x-3 hover:bg-indigo-700 transition transform hover:-translate-y-1">
+
+                    <div class="p-2 bg-white/10 rounded-lg">
+
+                        <i data-lucide="plus" class="w-6 h-6 text-white"></i>
+
+                    </div>
+
+                    <span class="text-white font-bold text-lg">Create New Key</span>
+
+                </button>
+
+            </div>
+
+            <!-- Keys Grid -->
+
+            <div>
+
+                <div class="flex items-center justify-between mb-6">
+
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center">
+
+                        <i data-lucide="list-filter" class="w-5 h-5 mr-2 text-slate-400"></i> 
+
+                        Active Access Keys
+
+                    </h3>
+
+                    <div class="text-xs text-slate-400 font-mono bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm flex items-center">
+
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-ping"></span>
+
+                        Live Monitoring
+
+                    </div>
+
+                </div>
+
+                
+
+                <div id="keys-list" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Keys will be injected here -->
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal: Create/Edit Key -->
+
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center backdrop-blur-sm opacity-0 modal">
+
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-95" id="modal-content">
+
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+
+                <h3 class="text-lg font-bold text-slate-800 flex items-center" id="modal-title">
+
+                    <i data-lucide="key" class="w-5 h-5 mr-2 text-indigo-600"></i> New Access Key
+
+                </h3>
+
+                <button onclick="closeModal()" class="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+
+                    <i data-lucide="x" class="w-5 h-5"></i>
+
+                </button>
+
+            </div>
+
+            
+
+            <form id="key-form" class="p-6 space-y-5">
+
+                <input type="hidden" id="key-id">
+
+                
+
+                <div>
+
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Name</label>
+
+                    <input type="text" id="key-name" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="e.g. User 01" required>
+
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+
+                    <div>
+
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data Limit</label>
+
+                        <div class="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500">
+
+                            <input type="number" id="key-limit" class="w-full p-3 outline-none" placeholder="Unl" min="0.1" step="0.1">
+
+                            <select id="key-unit" class="bg-slate-50 border-l border-slate-300 px-3 text-sm font-bold text-slate-600 outline-none">
+
+                                <option value="GB">GB</option>
+
+                                <option value="MB">MB</option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+                    <div>
+
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Expiry Date</label>
+
+                        <input type="date" id="key-expire" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-600">
+
+                    </div>
+
+                </div>
+
+                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex items-start">
+
+                    <i data-lucide="info" class="w-4 h-4 text-indigo-600 mt-0.5 mr-2 flex-shrink-0"></i>
+
+                    <p class="text-xs text-indigo-800 leading-relaxed">
+
+                        Limit ပြည့်လျှင် (သို့) ရက်လွန်လျှင် ၅ စက္ကန့်အတွင်း အလိုအလျောက် ပိတ်ပါမည်။
+
+                    </p>
+
+                </div>
+
+                <div class="pt-2">
+
+                    <button type="submit" id="save-btn" class="w-full bg-slate-900 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition flex justify-center items-center">
+
+                        Save Key
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl transform translate-y-24 transition-transform duration-300 flex items-center z-[60] max-w-sm border border-slate-700/50">
+
+        <div id="toast-icon" class="mr-3 text-emerald-400">
+
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+
+        </div>
+
+        <div>
+
+            <h4 class="font-bold text-sm" id="toast-title">Success</h4>
+
+            <p class="text-xs text-slate-300 mt-0.5" id="toast-msg">Operation completed successfully.</p>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        let apiUrl = localStorage.getItem('outline_api_url') || '';
+
+        let refreshInterval;
+
+        const REFRESH_RATE = 5000; // 5 Seconds Scan
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            lucide.createIcons();
+
+            if(apiUrl) {
+
+                document.getElementById('api-url').value = apiUrl;
+
+                startConnectionProcess();
+
+            }
+
+        });
+
+        // --- UI Feedback ---
+
+        function showToast(title, msg, type = 'success') {
+
+            const toast = document.getElementById('toast');
+
+            const iconDiv = document.getElementById('toast-icon');
+
+            
+
+            document.getElementById('toast-title').textContent = title;
+
+            document.getElementById('toast-msg').textContent = msg;
+
+            if(type === 'error') {
+
+                iconDiv.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5"></i>';
+
+                iconDiv.className = "mr-3 text-red-400";
+
+            } else if (type === 'warn') {
+
+                iconDiv.innerHTML = '<i data-lucide="shield-alert" class="w-5 h-5"></i>';
+
+                iconDiv.className = "mr-3 text-orange-400";
+
+            } else {
+
+                iconDiv.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5"></i>';
+
+                iconDiv.className = "mr-3 text-emerald-400";
+
+            }
+
+            lucide.createIcons();
+
+            toast.classList.remove('translate-y-24');
+
+            setTimeout(() => toast.classList.add('translate-y-24'), 4000);
+
+        }
+
+        // --- Connection ---
+
+        function disconnect() {
+
+            localStorage.removeItem('outline_api_url');
+
+            if(refreshInterval) clearInterval(refreshInterval);
+
+            location.reload();
+
+        }
+
+        function connectServer(e) {
+
+            e.preventDefault();
+
+            const input = document.getElementById('api-url').value.trim();
+
+            
+
+            // Basic cleanup
+
+            let cleanUrl = input;
+
+            if(cleanUrl.startsWith('{')) { try { cleanUrl = JSON.parse(cleanUrl).apiUrl; } catch(e){} }
+
+            if(cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+
+            document.getElementById('api-url').value = cleanUrl;
+
+            apiUrl = cleanUrl;
+
+            startConnectionProcess();
+
+        }
+
+        async function startConnectionProcess() {
+
+            const btn = document.getElementById('connect-btn');
+
+            const originalContent = btn.innerHTML;
+
+            
+
+            btn.innerHTML = `<div class="flex items-center"><svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Connecting...</div>`;
+
+            btn.disabled = true;
+
+            document.getElementById('ssl-help').classList.add('hidden');
+
+            document.getElementById('ssl-link').href = apiUrl;
+
+            try {
+
+                // Test connection
+
+                const res = await fetch(`${apiUrl}/server`);
+
+                if(!res.ok) throw new Error("API Unreachable");
+
+                const data = await res.json();
+
+                // Success
+
+                localStorage.setItem('outline_api_url', apiUrl);
+
+                
+
+                document.getElementById('login-section').classList.add('hidden');
+
+                document.getElementById('dashboard').classList.remove('hidden');
+
+                document.getElementById('nav-status').classList.remove('hidden');
+
+                document.getElementById('nav-status').classList.add('flex');
+
+                
+
+                // Initial Load
+
+                await refreshData();
+
+                
+
+                // Start Loop
+
+                refreshInterval = setInterval(refreshData, REFRESH_RATE);
+
+            } catch (error) {
+
+                console.error(error);
+
+                document.getElementById('ssl-help').classList.remove('hidden');
+
+                btn.innerHTML = originalContent;
+
+                btn.disabled = false;
+
+            }
+
+        }
+
+        // --- Core Data Logic ---
+
+        async function refreshData() {
+
+            try {
+
+                const [keysRes, metricsRes] = await Promise.all([
+
+                    fetch(`${apiUrl}/access-keys`),
+
+                    fetch(`${apiUrl}/metrics/transfer`)
+
+                ]);
+
+                
+
+                if(!keysRes.ok || !metricsRes.ok) throw new Error("Sync Failed");
+
+                const keysData = await keysRes.json();
+
+                const metricsData = await metricsRes.json();
+
+                
+
+                renderDashboard(keysData.accessKeys, metricsData.bytesTransferredByUserId);
+
+            } catch(e) { 
+
+                console.log("Silent Sync Error (likely network glitch)"); 
+
+            }
+
+        }
+
+        function formatBytes(bytes) {
+
+            if (!bytes || bytes === 0) return '0 B';
+
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+            const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+
+            return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+
+        }
+
+        // --- Render UI & Logic Check ---
+
+        async function renderDashboard(keys, usageMap) {
+
+            const list = document.getElementById('keys-list');
+
+            list.innerHTML = '';
+
+            
+
+            document.getElementById('total-keys').textContent = keys.length;
+
+            let totalBytes = 0;
+
+            Object.values(usageMap).forEach(b => totalBytes += b);
+
+            document.getElementById('total-usage').textContent = formatBytes(totalBytes);
+
+            // Sort: Blocked last, then by ID
+
+            keys.sort((a,b) => parseInt(a.id) - parseInt(b.id));
+
+            const today = new Date().toISOString().split('T')[0];
+
+            for (const key of keys) {
+
+                const limitBytes = key.dataLimit ? key.dataLimit.bytes : 0;
+
+                const usedBytes = usageMap[key.id] || 0;
+
+                
+
+                // 1. Parsing Name & Date
+
+                let displayName = key.name || 'No Name';
+
+                let rawName = displayName;
+
+                let expireDate = null;
+
+                
+
+                if (displayName.includes('|')) {
+
+                    const parts = displayName.split('|');
+
+                    rawName = parts[0].trim();
+
+                    const potentialDate = parts[parts.length - 1].trim();
+
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) {
+
+                        expireDate = potentialDate;
+
+                    }
+
+                }
+
+                // 2. Logic Status
+
+                const isBlocked = limitBytes > 0 && limitBytes <= 5000; // Threshold for "Blocked" status
+
+                let isExpired = false;
+
+                if (expireDate && expireDate < today) isExpired = true;
+
+                
+
+                let isDataExhausted = false;
+
+                // Only check data exhaustion if it has a REAL limit (>5000)
+
+                if (limitBytes > 5000 && usedBytes >= limitBytes) {
+
+                    isDataExhausted = true;
+
+                }
+
+                // 3. AUTO BLOCK ACTION
+
+                if (!isBlocked) {
+
+                    if (isExpired) {
+
+                        await autoBlockKey(key.id, "Expired");
+
+                    } else if (isDataExhausted) {
+
+                        await autoBlockKey(key.id, "Data Limit Reached");
+
+                    }
+
+                }
+
+                // 4. UI Preparation
+
+                let statusBadge, cardClass, progressBarColor, percentage = 0;
+
+                let switchState = true; // ON
+
+                if (isBlocked) {
+
+                    switchState = false; // OFF
+
+                    percentage = 100;
+
+                    progressBarColor = 'bg-slate-300';
+
+                    cardClass = 'border-slate-200 bg-slate-50 opacity-90';
+
+                    
+
+                    if(isExpired) {
+
+                        statusBadge = `<span class="flex items-center text-xs font-bold text-slate-500"><i data-lucide="clock" class="w-3 h-3 mr-1"></i> Expired</span>`;
+
+                    } else if (usedBytes >= limitBytes && limitBytes > 5000) {
+
+                        statusBadge = `<span class="flex items-center text-xs font-bold text-slate-500"><i data-lucide="ban" class="w-3 h-3 mr-1"></i> Disabled</span>`;
+
+                    } else {
+
+                        statusBadge = `<span class="flex items-center text-xs font-bold text-slate-500"><i data-lucide="lock" class="w-3 h-3 mr-1"></i> Disabled</span>`;
+
+                    }
+
+                } else {
+
+                    // Active
+
+                    switchState = true;
+
+                    cardClass = 'border-slate-200 bg-white';
+
+                    
+
+                    if (limitBytes > 5000) {
+
+                        percentage = Math.min((usedBytes / limitBytes) * 100, 100);
+
+                        progressBarColor = percentage > 90 ? 'bg-orange-500' : 'bg-indigo-500';
+
+                    } else {
+
+                        // Unlimited
+
+                        percentage = 5; // Minimal visual
+
+                        progressBarColor = 'bg-emerald-500';
+
+                    }
+
+                    
+
+                    statusBadge = `<span class="flex items-center text-xs font-bold text-emerald-600"><i data-lucide="wifi" class="w-3 h-3 mr-1"></i> Active</span>`;
+
+                }
+
+                // Prepare Link
+
+                let finalAccessUrl = key.accessUrl;
+
+                if(key.name) {
+
+                    const baseUrl = key.accessUrl.split('#')[0];
+
+                    finalAccessUrl = `${baseUrl}#${encodeURIComponent(displayName)}`;
+
+                }
+
+                // Render Card
+
+                const card = document.createElement('div');
+
+                card.className = `rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all ${cardClass}`;
+
+                card.innerHTML = `
+
+                    <div class="flex justify-between items-start mb-4">
+
+                        <div class="flex items-center">
+
+                            <div class="w-12 h-12 rounded-2xl ${isBlocked ? 'bg-slate-200 text-slate-500' : 'bg-indigo-50 text-indigo-600'} font-bold flex items-center justify-center mr-4 text-sm border border-black/5">
+
+                                ${key.id}
+
+                            </div>
+
+                            <div>
+
+                                <h4 class="font-bold text-slate-800 text-lg leading-tight line-clamp-1">${rawName}</h4>
+
+                                <div class="flex items-center gap-3 mt-1">
+
+                                    ${statusBadge}
+
+                                    ${expireDate ? `<span class="flex items-center text-xs text-slate-400 font-medium"><i data-lucide="calendar-days" class="w-3 h-3 mr-1"></i> ${expireDate}</span>` : ''}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        
+
+                        <!-- Toggle Switch -->
+
+                        <button onclick="toggleKey('${key.id}', ${isBlocked})" 
+
+                            class="relative w-14 h-8 rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${switchState ? 'bg-emerald-500' : 'bg-slate-300'}" 
+
+                            title="${switchState ? 'Click to Disable' : 'Click to Enable'}">
+
+                            <span class="sr-only">Toggle</span>
+
+                            <span class="inline-block w-6 h-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-1 ${switchState ? 'translate-x-7' : 'translate-x-1'}"></span>
+
+                        </button>
+
+                    </div>
+
+                    <!-- Progress Bar -->
+
+                    <div class="mb-5">
+
+                        <div class="flex justify-between text-xs mb-1.5 font-bold text-slate-500 uppercase tracking-wider">
+
+                            <span>${formatBytes(usedBytes)}</span>
+
+                            <span>${limitBytes > 5000 ? formatBytes(limitBytes) : 'Unlimited'}</span>
+
+                        </div>
+
+                        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+
+                            <div class="${progressBarColor} h-3 rounded-full transition-all duration-700 ease-out" style="width: ${percentage}%"></div>
+
+                        </div>
+
+                    </div>
+
+                    
+
+                    <!-- Footer Actions -->
+
+                    <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+
+                        <div class="flex space-x-2">
+
+                            <button onclick="editKey('${key.id}', '${rawName.replace(/'/g, "\\'")}', '${expireDate || ''}', ${limitBytes})" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Edit Configuration">
+
+                                <i data-lucide="settings-2" class="w-4 h-4"></i>
+
+                            </button>
+
+                            <button onclick="deleteKey('${key.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete Key">
+
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+
+                            </button>
+
+                        </div>
+
+                        <button onclick="copyKey('${finalAccessUrl}')" class="flex items-center px-4 py-2 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded-lg text-xs font-bold transition">
+
+                            <i data-lucide="copy" class="w-3 h-3 mr-2"></i> Copy Link
+
+                        </button>
+
+                    </div>
+
+                `;
+
+                list.appendChild(card);
+
+            }
+
+            lucide.createIcons();
+
+        }
+
+        // --- Logic Actions ---
+
+        async function autoBlockKey(id, reason) {
+
+            try {
+
+                await fetch(`${apiUrl}/access-keys/${id}/data-limit`, {
+
+                    method: 'PUT',
+
+                    headers: {'Content-Type': 'application/json'},
+
+                    body: JSON.stringify({ limit: { bytes: 1 } })
+
+                });
+
+                showToast("Auto Guard", `Key ${id} blocked: ${reason}`, 'warn');
+
+            } catch(e) { console.error(e); }
+
+        }
+
+        async function toggleKey(id, isCurrentlyBlocked) {
+
+            if(isCurrentlyBlocked) {
+
+                // Enable (Remove Limit)
+
+                try {
+
+                    await fetch(`${apiUrl}/access-keys/${id}/data-limit`, { method: 'DELETE' });
+
+                    showToast("Enabled", "Key has been activated");
+
+                    refreshData();
+
+                } catch(e) { showToast("Error", "Could not enable key", 'error'); }
+
+            } else {
+
+                // Disable (Set 1 Byte Limit)
+
+                try {
+
+                    await fetch(`${apiUrl}/access-keys/${id}/data-limit`, {
+
+                        method: 'PUT',
+
+                        headers: {'Content-Type': 'application/json'},
+
+                        body: JSON.stringify({ limit: { bytes: 1 } })
+
+                    });
+
+                    showToast("Disabled", "Key has been blocked");
+
+                    refreshData();
+
+                } catch(e) { showToast("Error", "Could not disable key", 'error'); }
+
+            }
+
+        }
+
+        async function deleteKey(id) {
+
+            if(!confirm("Are you sure you want to delete this key permanently?")) return;
+
+            try {
+
+                await fetch(`${apiUrl}/access-keys/${id}`, { method: 'DELETE' });
+
+                showToast("Deleted", "Key removed successfully");
+
+                refreshData();
+
+            } catch(e) { showToast("Error", "Delete failed (Check Console)", 'error'); }
+
+        }
+
+        // --- Modal Logic ---
+
+        const modal = document.getElementById('modal-overlay');
+
+        const modalContent = document.getElementById('modal-content');
+
+        function openCreateModal() {
+
+            document.getElementById('key-form').reset();
+
+            document.getElementById('key-id').value = '';
+
+            document.getElementById('key-unit').value = 'GB'; // Default
+
+            document.getElementById('modal-title').innerHTML = `<i data-lucide="key" class="w-5 h-5 mr-2 text-indigo-600"></i> New Access Key`;
+
+            
+
+            // Default +30 days
+
+            const d = new Date(); d.setDate(d.getDate() + 30);
+
+            document.getElementById('key-expire').value = d.toISOString().split('T')[0];
+
+            
+
+            modal.classList.remove('hidden');
+
+            setTimeout(() => { modal.classList.remove('opacity-0'); modalContent.classList.remove('scale-95'); }, 10);
+
+            lucide.createIcons();
+
+        }
+
+        function closeModal() {
+
+            modal.classList.add('opacity-0');
+
+            modalContent.classList.add('scale-95');
+
+            setTimeout(() => modal.classList.add('hidden'), 200);
+
+        }
+
+        function editKey(id, name, date, bytes) {
+
+            document.getElementById('key-id').value = id;
+
+            document.getElementById('key-name').value = name;
+
+            document.getElementById('key-expire').value = date;
+
+            
+
+            if(bytes > 5000) {
+
+                // Determine unit
+
+                if (bytes >= 1073741824) {
+
+                    document.getElementById('key-limit').value = (bytes / 1073741824).toFixed(2);
+
+                    document.getElementById('key-unit').value = 'GB';
+
+                } else {
+
+                    document.getElementById('key-limit').value = (bytes / 1048576).toFixed(2);
+
+                    document.getElementById('key-unit').value = 'MB';
+
+                }
+
+            } else {
+
+                document.getElementById('key-limit').value = '';
+
+                document.getElementById('key-unit').value = 'GB';
+
+            }
+
+            document.getElementById('modal-title').innerHTML = `<i data-lucide="settings-2" class="w-5 h-5 mr-2 text-indigo-600"></i> Edit Key #${id}`;
+
+            modal.classList.remove('hidden');
+
+            setTimeout(() => { modal.classList.remove('opacity-0'); modalContent.classList.remove('scale-95'); }, 10);
+
+            lucide.createIcons();
+
+        }
+
+        document.getElementById('key-form').addEventListener('submit', async (e) => {
+
+            e.preventDefault();
+
+            const btn = document.getElementById('save-btn');
+
+            btn.innerHTML = 'Saving...'; btn.disabled = true;
+
+            const id = document.getElementById('key-id').value;
+
+            let name = document.getElementById('key-name').value.trim();
+
+            const date = document.getElementById('key-expire').value;
+
+            const limitVal = parseFloat(document.getElementById('key-limit').value);
+
+            const unit = document.getElementById('key-unit').value;
+
+            if (date) name = `${name} | ${date}`;
+
+            try {
+
+                let targetId = id;
+
+                if(!targetId) {
+
+                    const res = await fetch(`${apiUrl}/access-keys`, { method: 'POST' });
+
+                    const data = await res.json();
+
+                    targetId = data.id;
+
+                }
+
+                await fetch(`${apiUrl}/access-keys/${targetId}/name`, {
+
+                    method: 'PUT',
+
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+
+                    body: `name=${encodeURIComponent(name)}`
+
+                });
+
+                if(limitVal > 0) {
+
+                    let bytes = 0;
+
+                    if (unit === 'GB') bytes = Math.floor(limitVal * 1024 * 1024 * 1024);
+
+                    else bytes = Math.floor(limitVal * 1024 * 1024); // MB
+
+                    await fetch(`${apiUrl}/access-keys/${targetId}/data-limit`, {
+
+                        method: 'PUT',
+
+                        headers: {'Content-Type': 'application/json'},
+
+                        body: JSON.stringify({ limit: { bytes: bytes } })
+
+                    });
+
+                } else {
+
+                    // Check if we are "unblocking" by removing limit?
+
+                    // For logic simplicity: If editing and limit box is empty -> Remove limit (Unblock)
+
+                    await fetch(`${apiUrl}/access-keys/${targetId}/data-limit`, { method: 'DELETE' });
+
+                }
+
+                showToast("Saved", "Key configuration updated");
+
+                closeModal();
+
+                refreshData();
+
+            } catch(e) {
+
+                showToast("Error", "Save failed", 'error');
+
+            } finally {
+
+                btn.innerHTML = 'Save Key'; btn.disabled = false;
+
+            }
+
+        });
+
+        function copyKey(text) {
+
+            const temp = document.createElement('textarea');
+
+            temp.value = text;
+
+            document.body.appendChild(temp);
+
+            temp.select();
+
+            document.execCommand('copy');
+
+            document.body.removeChild(temp);
+
+            showToast("Copied", "Access link copied to clipboard");
+
+        }
+
+    </script>
+
+</body>
+
+</html>
+EOF
+
+# 9. PM2 Setup & Startup
+echo -e "${YELLOW}[+] Services များကို စတင်နေပါသည်...${NC}"
+
+# Stop old processes if any
+pm2 delete outline-guard 2>/dev/null
+pm2 delete outline-web 2>/dev/null
+
+# Start Bot
+pm2 start bot.js --name "outline-guard"
+
+# Start Web Server (Port 8080)
+pm2 start http-server --name "outline-web" -- -p 8080
+
+# Save PM2 list
+pm2 save
+pm2 startup
+
+# 10. Firewall Config
+echo -e "${YELLOW}[+] Firewall Port 8080 ကို ဖွင့်နေပါသည်...${NC}"
+ufw allow 8080/tcp > /dev/null 2>&1
+
+# 11. Final Output
+IP=$(hostname -I | awk '{print $1}')
+echo -e "${GREEN}==============================================${NC}"
+echo -e "${GREEN}   INSTALLATION COMPLETE! (အောင်မြင်ပါသည်)   ${NC}"
+echo -e "${GREEN}==============================================${NC}"
+echo -e "Web Panel ကို ဝင်ရောက်ရန်:"
+echo -e "${YELLOW}http://${IP}:8080${NC}"
+echo -e ""
+echo -e "Bot Status:"
+echo -e "${YELLOW}pm2 logs outline-guard${NC}"
+echo -e "${GREEN}==============================================${NC}"
