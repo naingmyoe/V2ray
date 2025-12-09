@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outline Ultimate Manager (TopUp Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .modal { transition: opacity 0.25s ease; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-900/50">
+                    <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Outline Manager</h1>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">TopUp Edition</p>
+                </div>
+            </div>
+            <div id="nav-status" class="hidden flex items-center space-x-4">
+                <div class="hidden md:flex items-center px-3 py-1 bg-slate-800 rounded-full border border-slate-700">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> 
+                    <span class="text-xs text-emerald-400 font-medium">System Active</span>
+                </div>
+                <button onclick="disconnect()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Logout">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div id="login-section" class="max-w-lg mx-auto mt-16">
+            <div class="bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                        <i data-lucide="link" class="w-8 h-8 text-indigo-600"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800">Server Connection</h2>
+                    <p class="text-slate-500 mt-2 text-sm">Please enter your Management API URL</p>
+                </div>
+                
+                <form onsubmit="connectServer(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">API URL</label>
+                        <input type="password" id="api-url" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition font-mono text-sm" placeholder="https://1.2.3.4:xxxxx/SecretKey..." required>
+                    </div>
+                    <button type="submit" id="connect-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-200 transition flex justify-center items-center">
+                        <span class="btn-text">Connect Server</span>
+                    </button>
+                </form>
+                
+                 <div id="ssl-help" class="hidden mt-6 p-4 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-800">
+                    <div class="flex items-start">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 mr-3 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="font-bold">Connection Failed?</p>
+                            <a href="#" id="ssl-link" target="_blank" class="inline-block bg-orange-100 text-orange-900 px-3 py-1 rounded-lg font-bold text-xs hover:bg-orange-200 transition mt-2">
+                                Allow SSL Certificate
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboard" class="hidden space-y-8">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Keys</p>
+                        <h3 class="text-3xl font-bold text-slate-800 mt-1" id="total-keys">0</h3>
+                    </div>
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Traffic</p>
+                        <h3 class="text-3xl font-bold text-slate-800 mt-1" id="total-usage">0 GB</h3>
+                    </div>
+                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <i data-lucide="activity" class="w-6 h-6"></i>
+                    </div>
+                </div>
+                <button onclick="openCreateModal()" class="bg-slate-900 p-6 rounded-2xl shadow-lg shadow-slate-300 flex items-center justify-center space-x-3 hover:bg-indigo-700 transition transform hover:-translate-y-1">
+                    <div class="p-2 bg-white/10 rounded-lg">
+                        <i data-lucide="plus" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <span class="text-white font-bold text-lg">Create New Key</span>
+                </button>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                        <i data-lucide="list-filter" class="w-5 h-5 mr-2 text-slate-400"></i> 
+                        Active Access Keys
+                    </h3>
+                </div>
+                <div id="keys-list" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center backdrop-blur-sm opacity-0 modal">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all scale-95" id="modal-content">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center" id="modal-title">
+                    <i data-lucide="key" class="w-5 h-5 mr-2 text-indigo-600"></i> Manage Key
+                </h3>
+                <button onclick="closeModal()" class="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <form id="key-form" class="p-6 space-y-5">
+                <input type="hidden" id="key-id">
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Name</label>
+                    <input type="text" id="key-name" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="Username" required>
+                </div>
+
+                <div id="topup-container" class="hidden">
+                    <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-center">
+                        <input type="checkbox" id="topup-mode" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300">
+                        <label for="topup-mode" class="ml-3 block text-sm font-bold text-indigo-900">
+                            Reset Usage & Top Up
+                            <span class="block text-xs font-normal text-indigo-600">0 Used ပြပြီး အသစ်ထပ်ထည့်မည်</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Data Limit / TopUp</label>
+                        <div class="flex shadow-sm rounded-xl overflow-hidden border border-slate-300 focus-within:ring-2 focus-within:ring-indigo-500">
+                            <input type="number" id="key-limit" class="w-full p-3 outline-none" placeholder="Unl" min="0.1" step="0.1">
+                            <select id="key-unit" class="bg-slate-50 border-l border-slate-300 px-3 text-sm font-bold text-slate-600 outline-none">
+                                <option value="GB">GB</option>
+                                <option value="MB">MB</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Expiry Date</label>
+                        <input type="date" id="key-expire" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-slate-600">
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" id="save-btn" class="w-full bg-slate-900 hover:bg-indigo-700 text-white py-3.5 rounded-xl font-bold shadow-lg transition flex justify-center items-center">
+                        Save Key
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl transform translate-y-24 transition-transform duration-300 flex items-center z-[60] max-w-sm border border-slate-700/50">
+        <div id="toast-icon" class="mr-3 text-emerald-400"></div>
+        <div>
+            <h4 class="font-bold text-sm" id="toast-title">Success</h4>
+            <p class="text-xs text-slate-300 mt-0.5" id="toast-msg">Completed.</p>
+        </div>
+    </div>
+
+    <script>
+        let apiUrl = localStorage.getItem('outline_api_url') || '';
+        let globalUsageMap = {}; // Store raw usage from server
+        let refreshInterval;
+        const REFRESH_RATE = 5000;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            if(apiUrl) {
+                document.getElementById('api-url').value = apiUrl;
+                startConnectionProcess();
+            }
+        });
+
+        function showToast(title, msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const iconDiv = document.getElementById('toast-icon');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+            
+            let icon = 'check-circle';
+            let color = 'text-emerald-400';
+            
+            if(type === 'error') { icon = 'alert-circle'; color = 'text-red-400'; }
+            else if (type === 'warn') { icon = 'shield-alert'; color = 'text-orange-400'; }
+            
+            iconDiv.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+            iconDiv.className = `mr-3 ${color}`;
+            
+            lucide.createIcons();
+            toast.classList.remove('translate-y-24');
+            setTimeout(() => toast.classList.add('translate-y-24'), 4000);
+        }
+
+        function disconnect() {
+            localStorage.removeItem('outline_api_url');
+            if(refreshInterval) clearInterval(refreshInterval);
+            location.reload();
+        }
+
+        function connectServer(e) {
+            e.preventDefault();
+            let cleanUrl = document.getElementById('api-url').value.trim();
+            if(cleanUrl.startsWith('{')) { try { cleanUrl = JSON.parse(cleanUrl).apiUrl; } catch(e){} }
+            if(cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+            
+            document.getElementById('api-url').value = cleanUrl;
+            apiUrl = cleanUrl;
+            startConnectionProcess();
+        }
+
+        async function startConnectionProcess() {
+            const btn = document.getElementById('connect-btn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `Connecting...`;
+            btn.disabled = true;
+            document.getElementById('ssl-help').classList.add('hidden');
+            document.getElementById('ssl-link').href = apiUrl;
+
+            try {
+                const res = await fetch(`${apiUrl}/server`);
+                if(!res.ok) throw new Error("API Unreachable");
+                localStorage.setItem('outline_api_url', apiUrl);
+                
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('nav-status').classList.remove('hidden');
+                document.getElementById('nav-status').classList.add('flex');
+                
+                await refreshData();
+                refreshInterval = setInterval(refreshData, REFRESH_RATE);
+            } catch (error) {
+                document.getElementById('ssl-help').classList.remove('hidden');
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        async function refreshData() {
+            try {
+                const [keysRes, metricsRes] = await Promise.all([
+                    fetch(`${apiUrl}/access-keys`),
+                    fetch(`${apiUrl}/metrics/transfer`)
+                ]);
+                
+                if(!keysRes.ok || !metricsRes.ok) throw new Error("Sync Failed");
+                const keysData = await keysRes.json();
+                const metricsData = await metricsRes.json();
+                
+                globalUsageMap = metricsData.bytesTransferredByUserId; // Update global var
+                renderDashboard(keysData.accessKeys, globalUsageMap);
+            } catch(e) { console.log("Sync Error"); }
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+            return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        // --- MAIN LOGIC ---
+        async function renderDashboard(keys, usageMap) {
+            const list = document.getElementById('keys-list');
+            list.innerHTML = '';
+            
+            document.getElementById('total-keys').textContent = keys.length;
+            let totalNetworkBytes = 0;
+            Object.values(usageMap).forEach(b => totalNetworkBytes += b);
+            document.getElementById('total-usage').textContent = formatBytes(totalNetworkBytes);
+
+            keys.sort((a,b) => parseInt(a.id) - parseInt(b.id));
+            const today = new Date().toISOString().split('T')[0];
+
+            for (const key of keys) {
+                // 1. Calculate Real Limits vs Display Limits
+                // Get the 'offset' (usage at the time of last reset)
+                const usageOffset = parseInt(localStorage.getItem(`offset_${key.id}`) || '0');
+                
+                const rawLimit = key.dataLimit ? key.dataLimit.bytes : 0;
+                const rawUsage = usageMap[key.id] || 0;
+
+                // Display Math
+                let displayUsed = Math.max(0, rawUsage - usageOffset);
+                let displayLimit = 0;
+                
+                if (rawLimit > 0) {
+                    displayLimit = Math.max(0, rawLimit - usageOffset);
+                }
+
+                // 2. Parse Name & Date
+                let displayName = key.name || 'No Name';
+                let rawName = displayName;
+                let expireDate = null;
+                if (displayName.includes('|')) {
+                    const parts = displayName.split('|');
+                    rawName = parts[0].trim();
+                    const potentialDate = parts[parts.length - 1].trim();
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(potentialDate)) expireDate = potentialDate;
+                }
+
+                // 3. Logic Status
+                const isBlocked = rawLimit > 0 && rawLimit <= 5000; 
+                let isExpired = expireDate && expireDate < today;
+                
+                // Data Exhaustion Check (Based on REAL server values)
+                // If Raw Usage >= Raw Limit (and limit is not unlimited/blocked), it's exhausted.
+                let isDataExhausted = (rawLimit > 5000 && rawUsage >= rawLimit);
+
+                // Auto Block Logic
+                if (!isBlocked) {
+                    if (isExpired) await autoBlockKey(key.id, "Expired");
+                    else if (isDataExhausted) await autoBlockKey(key.id, "Data Limit Reached");
+                }
+
+                // 4. UI Status
+                let statusBadge, cardClass, progressBarColor, percentage = 0;
+                let switchState = true;
+
+                if (isBlocked) {
+                    switchState = false;
+                    percentage = 100;
+                    progressBarColor = 'bg-slate-300';
+                    cardClass = 'border-slate-200 bg-slate-50 opacity-90';
+                    
+                    if(isExpired) statusBadge = `<span class="text-xs font-bold text-slate-500">Expired</span>`;
+                    else if (isDataExhausted) statusBadge = `<span class="text-xs font-bold text-red-500">Data Full</span>`;
+                    else statusBadge = `<span class="text-xs font-bold text-slate-500">Disabled</span>`;
+                } else {
+                    switchState = true;
+                    cardClass = 'border-slate-200 bg-white';
+                    
+                    if (displayLimit > 0) {
+                        percentage = Math.min((displayUsed / displayLimit) * 100, 100);
+                        progressBarColor = percentage > 90 ? 'bg-orange-500' : 'bg-indigo-500';
+                    } else {
+                        percentage = 5; 
+                        progressBarColor = 'bg-emerald-500';
+                    }
+                    statusBadge = `<span class="text-xs font-bold text-emerald-600">Active</span>`;
+                }
+
+                // Final Access URL
+                let finalAccessUrl = key.accessUrl;
+                if(key.name) finalAccessUrl = `${key.accessUrl.split('#')[0]}#${encodeURIComponent(displayName)}`;
+
+                // Render
+                const card = document.createElement('div');
+                card.className = `rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all ${cardClass}`;
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 rounded-2xl ${isBlocked ? 'bg-slate-200 text-slate-500' : 'bg-indigo-50 text-indigo-600'} font-bold flex items-center justify-center mr-4 text-sm border border-black/5">
+                                ${key.id}
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-lg leading-tight line-clamp-1">${rawName}</h4>
+                                <div class="flex items-center gap-3 mt-1">
+                                    ${statusBadge}
+                                    ${expireDate ? `<span class="text-xs text-slate-400 font-medium">${expireDate}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="toggleKey('${key.id}', ${isBlocked})" class="relative w-12 h-7 rounded-full transition-colors focus:outline-none ${switchState ? 'bg-emerald-500' : 'bg-slate-300'}">
+                            <span class="inline-block w-5 h-5 transform rounded-full bg-white shadow transition-transform mt-1 ${switchState ? 'translate-x-6' : 'translate-x-1'}"></span>
+                        </button>
+                    </div>
+                    <div class="mb-5">
+                        <div class="flex justify-between text-xs mb-1.5 font-bold text-slate-500 uppercase tracking-wider">
+                            <span>${formatBytes(displayUsed)}</span>
+                            <span>${displayLimit > 0 ? formatBytes(displayLimit) : 'Unlimited'}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                            <div class="${progressBarColor} h-3 rounded-full transition-all duration-700" style="width: ${percentage}%"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+                        <div class="flex space-x-2">
+                            <button onclick="editKey('${key.id}', '${rawName.replace(/'/g, "\\'")}', '${expireDate || ''}', ${displayLimit})" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                                <i data-lucide="settings-2" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteKey('${key.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <button onclick="copyKey('${finalAccessUrl}')" class="flex items-center px-4 py-2 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded-lg text-xs font-bold transition">
+                            <i data-lucide="copy" class="w-3 h-3 mr-2"></i> Copy Link
+                        </button>
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+            lucide.createIcons();
+        }
+
+        async function autoBlockKey(id, reason) {
+            try {
+                await fetch(`${apiUrl}/access-keys/${id}/data-limit`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ limit: { bytes: 1 } })
+                });
+                showToast("Auto Guard", `Key ${id} blocked: ${reason}`, 'warn');
+            } catch(e) {}
+        }
+
+        async function toggleKey(id, isBlocked) {
+            try {
+                if(isBlocked) {
+                    await fetch(`${apiUrl}/access-keys/${id}/data-limit`, { method: 'DELETE' });
+                    // If we unblock, maybe we want to keep the usage view? Yes.
+                    showToast("Enabled", "Key has been activated");
+                } else {
+                    await fetch(`${apiUrl}/access-keys/${id}/data-limit`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ limit: { bytes: 1 } })
+                    });
+                    showToast("Disabled", "Key has been blocked");
+                }
+                refreshData();
+            } catch(e) { showToast("Error", "Action failed", 'error'); }
+        }
+
+        async function deleteKey(id) {
+            if(!confirm("Delete this key?")) return;
+            try {
+                await fetch(`${apiUrl}/access-keys/${id}`, { method: 'DELETE' });
+                localStorage.removeItem(`offset_${id}`); // Clean up storage
+                showToast("Deleted", "Key removed");
+                refreshData();
+            } catch(e) { showToast("Error", "Delete failed", 'error'); }
+        }
+
+        // --- Modal Logic ---
+        const modal = document.getElementById('modal-overlay');
+        const modalContent = document.getElementById('modal-content');
+
+        function openCreateModal() {
+            document.getElementById('key-form').reset();
+            document.getElementById('key-id').value = '';
+            document.getElementById('key-unit').value = 'GB';
+            document.getElementById('topup-container').classList.add('hidden'); // No TopUp for new key
+            
+            const d = new Date(); d.setDate(d.getDate() + 30);
+            document.getElementById('key-expire').value = d.toISOString().split('T')[0];
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); modalContent.classList.remove('scale-95'); }, 10);
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function editKey(id, name, date, displayBytes) {
+            document.getElementById('key-id').value = id;
+            document.getElementById('key-name').value = name;
+            document.getElementById('key-expire').value = date;
+            
+            // Enable TopUp option for existing keys
+            document.getElementById('topup-container').classList.remove('hidden');
+            document.getElementById('topup-mode').checked = false; // Reset checkbox
+
+            if(displayBytes > 0) {
+                if (displayBytes >= 1073741824) {
+                    document.getElementById('key-limit').value = (displayBytes / 1073741824).toFixed(2);
+                    document.getElementById('key-unit').value = 'GB';
+                } else {
+                    document.getElementById('key-limit').value = (displayBytes / 1048576).toFixed(2);
+                    document.getElementById('key-unit').value = 'MB';
+                }
+            } else {
+                document.getElementById('key-limit').value = '';
+            }
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); modalContent.classList.remove('scale-95'); }, 10);
+            lucide.createIcons();
+        }
+
+        document.getElementById('key-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('save-btn');
+            btn.innerHTML = 'Saving...'; btn.disabled = true;
+
+            const id = document.getElementById('key-id').value;
+            let name = document.getElementById('key-name').value.trim();
+            const date = document.getElementById('key-expire').value;
+            const inputVal = parseFloat(document.getElementById('key-limit').value);
+            const unit = document.getElementById('key-unit').value;
+            const isTopUp = document.getElementById('topup-mode').checked;
+
+            if (date) name = `${name} | ${date}`;
+
+            try {
+                let targetId = id;
+                // Create New Key
+                if(!targetId) {
+                    const res = await fetch(`${apiUrl}/access-keys`, { method: 'POST' });
+                    const data = await res.json();
+                    targetId = data.id;
+                    // Reset offset for new key
+                    localStorage.setItem(`offset_${targetId}`, '0');
+                }
+
+                // Update Name
+                await fetch(`${apiUrl}/access-keys/${targetId}/name`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: `name=${encodeURIComponent(name)}`
+                });
+
+                // Update Limit & Handle TopUp
+                if(inputVal > 0) {
+                    let newQuotaBytes = 0;
+                    if (unit === 'GB') newQuotaBytes = Math.floor(inputVal * 1024 * 1024 * 1024);
+                    else newQuotaBytes = Math.floor(inputVal * 1024 * 1024);
+
+                    let finalLimitToSend = newQuotaBytes;
+                    
+                    if (targetId && isTopUp) {
+                        // TOP UP LOGIC
+                        // 1. Get current RAW usage from global map
+                        const currentRawUsage = globalUsageMap[targetId] || 0;
+                        
+                        // 2. Set Offset = Current Raw Usage (This makes UI show 0)
+                        localStorage.setItem(`offset_${targetId}`, currentRawUsage);
+
+                        // 3. New Limit = Current Raw Usage + New Quota
+                        finalLimitToSend = currentRawUsage + newQuotaBytes;
+                        
+                        showToast("Top Up Success", `Added ${inputVal}${unit} & Reset View`);
+                    } else if (targetId) {
+                         // NORMAL EDIT (Just changing the limit number)
+                         // We preserve the existing offset
+                         const existingOffset = parseInt(localStorage.getItem(`offset_${targetId}`) || '0');
+                         finalLimitToSend = existingOffset + newQuotaBytes;
+                    }
+
+                    await fetch(`${apiUrl}/access-keys/${targetId}/data-limit`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ limit: { bytes: finalLimitToSend } })
+                    });
+                } else {
+                    // Unlimited
+                    await fetch(`${apiUrl}/access-keys/${targetId}/data-limit`, { method: 'DELETE' });
+                }
+
+                if(!isTopUp) showToast("Saved", "Configuration updated");
+                closeModal();
+                refreshData();
+
+            } catch(e) {
+                console.error(e);
+                showToast("Error", "Save failed", 'error');
+            } finally {
+                btn.innerHTML = 'Save Key'; btn.disabled = false;
+            }
+        });
+
+        function copyKey(text) {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast("Copied", "Link copied");
+        }
+    </script>
+</body>
+</html>
