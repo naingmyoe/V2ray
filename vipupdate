@@ -10,5 +10,4 @@
 #profile-web-page-url: https://github.com/barry-far/V2ray-config
 
 
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTo1dmQ4VjliQ2ZpeFNVOHAyYmFVNVBH@64.56.71.36:2717/?outline=1#NewMainServer🇸🇬🇸🇬🇸🇬
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpzNXRqd3dGTEd5YkgxUVN2ZjVJZFA4@77.83.241.14:62786/?outline=1#Singapore🇸🇬🇸🇬🇸🇬
+vless://dbbc266e-36dc-4f88-a249-e559f961a2a1@64.56.71.36:17391?type=tcp&encryption=none&security=reality&pbk=JiEgeGXLQflxCASZb0nlq94a40hz2_iqHwFpH6TYOEA&fp=chrome&sni=www.apple.com&sid=e4c2ba3c&spx=%2F#MainServer
