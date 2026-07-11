@@ -1,15 +1,3 @@
-#profile-title: base64:RkFNSUxZU0VSVkVS
-#profile-update-interval: 1
-#subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
-#support-url: https://github.com/barry-far/V2ray-config
-#profile-web-page-url: https://github.com/barry-far/V2ray-config
-#profile-title: base64:RkFNSUxZU0VSVkVS
-#profile-update-interval: 1
-#subscription-userinfo: upload=29; download=12; total=10737418240000000; expire=2546249531
-#support-url: https://github.com/barry-far/V2ray-config
-#profile-web-page-url: https://github.com/barry-far/V2ray-config
-
-
 ss://YWVzLTI1Ni1nY206T014YnpuUmtoWUFKQTFHOG45a3lRT2NGMWw3VitwQVpuNUtqbFdHc3FsQT0@70.36.125.6:23216?type=tcp#United State
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBYjRZaUlDUWZlRGp2cUNNb3ZLWGxE@74.81.63.87:443/?outline=1#Server
-ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwa0ZnV25CSlZDdU5ZYkFJYXhtZ3Zu@207.148.127.100:443/?outline=1#Newserver
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBYjRZaUlDUWZlRGp2cUNNb3ZLWGxE@74.81.63.87:443/?outline=1#Server | free
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwa0ZnV25CSlZDdU5ZYkFJYXhtZ3Zu@207.148.127.100:443/?outline=1#Newserver | premium
